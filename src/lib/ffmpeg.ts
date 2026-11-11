@@ -1,5 +1,4 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
+import { FFmpeg, FFFSType } from '@ffmpeg/ffmpeg';
 import coreURL from '@ffmpeg/core?url';
 import wasmURL from '@ffmpeg/core/wasm?url';
 import { buildArgs } from './buildJob';
@@ -69,10 +68,20 @@ export async function exportVideo(inp: ExportInput): Promise<Blob> {
 
 async function attempt(inp: ExportInput, copyAudio: boolean): Promise<Blob> {
   const ff = await loadFFmpeg();
-  const ext = (inp.file.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
-  const input = `input.${ext}`;
   const output = 'output.mp4';
-  const written: string[] = [input];
+  const written: string[] = [];
+  // Das Video wird NICHT in den Speicher kopiert, sondern direkt aus der Datei gelesen (WORKERFS).
+  // Das spart auf dem iPhone mehrere hundert MB und verhindert Abstürze.
+  const dir = '/in';
+  const ext = (inp.file.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+  const file = new File([inp.file], `video.${ext}`, { type: inp.file.type });
+  const input = `${dir}/${file.name}`;
+  try {
+    await ff.createDir(dir);
+  } catch {
+    /* existiert schon */
+  }
+  await ff.mount(FFFSType.WORKERFS, { files: [file] }, dir);
 
   let lastErr = '';
   const debug = /[?&]debug\b/.test(location.search);
@@ -89,7 +98,6 @@ async function attempt(inp: ExportInput, copyAudio: boolean): Promise<Blob> {
   ff.on('log', onLog);
 
   try {
-    await ff.writeFile(input, await fetchFile(inp.file));
     const masks: MaskSpec[] = [];
     for (let i = 0; i < inp.regions.length; i++) {
       const r = inp.regions[i];
@@ -117,6 +125,11 @@ async function attempt(inp: ExportInput, copyAudio: boolean): Promise<Blob> {
     return new Blob([data], { type: 'video/mp4' });
   } finally {
     ff.off('log', onLog);
+    try {
+      await ff.unmount(dir);
+    } catch {
+      /* ignorieren */
+    }
     for (const f of written) {
       try {
         await ff.deleteFile(f);

@@ -35,6 +35,14 @@ export function delogoBox(b: Rect, width: number, height: number): Rect | null {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
+/** Maximale kürzere Seite je Qualitätsstufe */
+export const MAX_SHORT = { original: 1080, '720p': 720 } as const;
+
+/** Verkleinerungsfaktor für die Arbeitsgröße (nie vergrößern). */
+export function workScale(w: number, h: number, quality: keyof typeof MAX_SHORT): number {
+  return Math.min(1, MAX_SHORT[quality] / Math.min(w, h));
+}
+
 function enableExpr(start: number, end: number, duration: number): string {
   if (start <= 0.01 && end >= duration - 0.01) return '';
   return `:enable='between(t,${fmt(start)},${fmt(end)})'`;
@@ -45,11 +53,15 @@ function enableExpr(start: number, end: number, duration: number): string {
  * Reihenfolge: Bereiche entfernen/weichzeichnen → zuschneiden → 9:16 → skalieren.
  */
 export function buildArgs(job: JobSpec): string[] {
-  const { settings, masks, duration } = job;
-  // Arbeitsgröße = Anzeigegröße im Browser (gerade Werte). Gleicht Videos mit
-  // nicht-quadratischen Pixeln (SAR) an, damit Markierungen exakt passen.
-  const width = even(job.width);
-  const height = even(job.height);
+  const { settings, duration } = job;
+  // Arbeitsgröße = Anzeigegröße im Browser, gleich am Anfang verkleinert:
+  // kürzere Seite max. 1080 (Original) bzw. 720 (Schnell). 4K-Videos vom iPhone würden im
+  // Browser sonst zu viel Speicher brauchen. Gleicht außerdem nicht-quadratische Pixel (SAR) aus.
+  const f = workScale(job.width, job.height, settings.quality);
+  const width = even(job.width * f);
+  const height = even(job.height * f);
+  const sr = (r: Rect): Rect => ({ x: r.x * f, y: r.y * f, w: r.w * f, h: r.h * f });
+  const masks = job.masks.map((m) => ({ ...m, boxes: m.boxes.map(sr) }));
   const args: string[] = ['-i', job.input];
   const parts: string[] = [];
   let n = 0;
@@ -88,7 +100,7 @@ export function buildArgs(job: JobSpec): string[] {
   let curW = width;
   let curH = height;
   if (settings.crop) {
-    const c = normalizeCrop(settings.crop, width, height);
+    const c = normalizeCrop(sr(settings.crop), width, height);
     if (c.w !== width || c.h !== height) {
       const out = next();
       parts.push(`${cur}crop=${c.w}:${c.h}:${c.x}:${c.y}${out}`);
@@ -115,14 +127,7 @@ export function buildArgs(job: JobSpec): string[] {
     }
   }
 
-  let tail = '';
-  if (settings.quality === '720p' && Math.min(curW, curH) > 720) {
-    tail =
-      curW <= curH
-        ? `scale=720:-2:flags=lanczos,`
-        : `scale=-2:720:flags=lanczos,`;
-  }
-  parts.push(`${cur}${tail}format=yuv420p[out]`);
+  parts.push(`${cur}format=yuv420p[out]`);
 
   args.push(
     '-filter_complex', parts.join(';'),

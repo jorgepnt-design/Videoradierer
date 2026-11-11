@@ -351,7 +351,7 @@ export function Editor(p: Props) {
           ref={p.videoRef}
           src={p.src}
           playsInline
-          preload="auto"
+          preload="metadata"
           onLoadedData={p.onLoaded}
           style={{ width: disp.w, height: disp.h }}
         />

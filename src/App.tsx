@@ -23,6 +23,34 @@ interface Meta {
   duration: number;
 }
 
+// ---------- Absturz-Erkennung ----------
+// iOS beendet eine Seite ohne Fehlermeldung, wenn der Speicher knapp wird, und lädt sie neu.
+// Wir merken uns den laufenden Schritt; steht er nach dem Neuladen noch da, war es ein Absturz.
+const STEP_KEY = 'videoradierer.step';
+function markStep(step: string | null) {
+  try {
+    if (step) sessionStorage.setItem(STEP_KEY, step);
+    else sessionStorage.removeItem(STEP_KEY);
+  } catch {
+    /* privater Modus */
+  }
+}
+function crashMessage(): string | null {
+  let step: string | null = null;
+  try {
+    step = sessionStorage.getItem(STEP_KEY);
+    sessionStorage.removeItem(STEP_KEY);
+  } catch {
+    return null;
+  }
+  if (!step) return null;
+  return (
+    `Die App wurde beim ${step === 'öffnen' ? 'Öffnen des Videos' : step === 'analysieren' ? 'Analysieren' : 'Exportieren'} ` +
+    'von iOS beendet – vermutlich war der Speicher zu knapp. Tipps: andere Apps und Safari-Tabs schließen, ' +
+    'ein kürzeres Video nehmen oder beim Export „Schnell (720p)“ wählen.'
+  );
+}
+
 const cloneRegions = (rs: Region[]) =>
   rs.map((r) => ({ ...r, rect: r.rect && { ...r.rect }, mask: r.mask && cloneCanvas(r.mask) }));
 
@@ -31,7 +59,7 @@ export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(crashMessage);
   const [notice, setNotice] = useState<string | null>(null);
 
   const [regions, setRegions] = useState<Region[]>([]);
@@ -60,6 +88,7 @@ export default function App() {
   // ---------- Video laden ----------
   const pick = async (f: File) => {
     setError(null);
+    markStep('öffnen');
     const u = URL.createObjectURL(f);
     try {
       const m = await new Promise<Meta>((res, rej) => {
@@ -67,8 +96,19 @@ export default function App() {
         v.preload = 'metadata';
         v.playsInline = true;
         v.muted = true;
-        v.onloadedmetadata = () => res({ w: v.videoWidth, h: v.videoHeight, duration: v.duration });
-        v.onerror = () => rej(new Error('Dieses Video kann nicht geöffnet werden.'));
+        const done = () => {
+          v.removeAttribute('src');
+          v.load(); // Dekoder sofort wieder freigeben
+        };
+        v.onloadedmetadata = () => {
+          const m = { w: v.videoWidth, h: v.videoHeight, duration: v.duration };
+          done();
+          res(m);
+        };
+        v.onerror = () => {
+          done();
+          rej(new Error('Dieses Video kann nicht geöffnet werden.'));
+        };
         v.src = u;
       });
       if (!m.w || !m.h || !isFinite(m.duration)) throw new Error('Dieses Video kann nicht geöffnet werden.');
@@ -89,12 +129,15 @@ export default function App() {
       const warn: string[] = [];
       if (m.duration > 60) warn.push(`Das Video ist ${Math.round(m.duration)} s lang – die Bearbeitung kann einige Minuten dauern.`);
       if (f.size > 200e6) warn.push(`Die Datei ist ${formatBytes(f.size)} groß – auf dem iPhone kann der Speicher knapp werden. Tipp: „Schnell (720p)“.`);
+      if (Math.min(m.w, m.h) > 1080) warn.push('4K-Video: wird beim Export auf 1080p verkleinert, damit das iPhone genug Speicher hat.');
       setNotice(warn.length ? warn.join(' ') : null);
-      // Engine schon im Hintergrund laden
-      loadFFmpeg().catch(() => {});
+      // Die Video-Engine wird bewusst NICHT schon hier geladen: zusammen mit dem
+      // Dekodieren des Videos wird der Speicher auf dem iPhone sonst zu knapp.
     } catch (e) {
       URL.revokeObjectURL(u);
       setError(friendlyError(e));
+    } finally {
+      markStep(null);
     }
   };
 
@@ -170,6 +213,7 @@ export default function App() {
   const autoDetect = async () => {
     if (!url || !meta) return;
     setDetecting(0);
+    markStep('analysieren');
     try {
       const stack = await sampleFrames(url, 24, 160, (p) => setDetecting(p));
       const s = stack.scale;
@@ -217,6 +261,7 @@ export default function App() {
       setNotice(friendlyError(e));
     } finally {
       setDetecting(null);
+      markStep(null);
     }
   };
 
@@ -268,6 +313,7 @@ export default function App() {
     } catch {
       /* nicht verfügbar */
     }
+    markStep('exportieren');
     try {
       await loadFFmpeg();
       if (cancelled.current) return;
@@ -290,6 +336,7 @@ export default function App() {
       setNotice(friendlyError(e));
       setScreen('edit');
     } finally {
+      markStep(null);
       lock?.release().catch(() => {});
     }
   };
@@ -555,7 +602,7 @@ export default function App() {
         <h3>Qualität</h3>
         <div className="seg">
           <button className={settings.quality === 'original' ? 'on' : ''} onClick={() => setSettings({ ...settings, quality: 'original' })}>
-            Original ({Math.min(meta.w, meta.h)}p)
+            {Math.min(meta.w, meta.h) > 1080 ? 'Hoch (1080p)' : `Original (${Math.min(meta.w, meta.h)}p)`}
           </button>
           <button className={settings.quality === '720p' ? 'on' : ''} onClick={() => setSettings({ ...settings, quality: '720p' })}>
             Schnell (720p)

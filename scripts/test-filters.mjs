@@ -49,7 +49,34 @@ const cases = [
   ['all-720p', { method: 'blur', crop: { x: 1, y: 3, w: 451, h: 877 }, fit: 'blur916', quality: '720p' }, masks, null, null],
 ];
 
+// Hochauflösendes Video: Arbeitsgröße muss auf 1080p (kürzere Seite) verkleinert werden
+const BW = 1440, BH = 2560;
+if (!existsSync('big.mp4')) {
+  ff(['-f', 'lavfi', '-i', `testsrc2=size=${BW}x${BH}:rate=30:duration=1`, '-f', 'lavfi', '-i', 'sine=duration=1',
+    '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', '-y', 'big.mp4']);
+}
+const bigMasks = [{ boxes: [{ x: 1300, y: 1200, w: 140, h: 900 }], start: 0, end: 1 }];
 let failed = 0;
+for (const [quality, ew, eh] of [['original', 1080, 1920], ['720p', 720, 1280]]) {
+  for (const crop of [null, { x: 0, y: 0, w: 1280, h: 2400 }]) {
+    const out = `out-big-${quality}-${crop ? 'crop' : 'full'}.mp4`;
+    const args = buildArgs({ input: 'big.mp4', output: out, width: BW, height: BH, duration: 1, masks: bigMasks,
+      settings: { method: 'remove', crop, fit: 'none', quality }, copyAudio: true });
+    try {
+      ff(args);
+      const v = probe(out).streams.find((s) => s.codec_type === 'video');
+      const f = ew / BW;
+      const w = crop ? Math.floor((1280 * f) / 2) * 2 : ew, h = crop ? Math.floor((2400 * f) / 2) * 2 : eh;
+      const ok = v.width === w && v.height === h;
+      console.log(`${ok ? 'OK  ' : 'FAIL'} ${out}: ${v.width}x${v.height} (erwartet ${w}x${h})`);
+      if (!ok) failed++;
+    } catch (e) {
+      failed++;
+      console.log(`FAIL ${out}: ${e.message}`);
+    }
+  }
+}
+
 for (const [name, settings, m, ew, eh] of cases) {
   for (const copyAudio of [true, false]) {
     const out = `out-${name}-${copyAudio ? 'copy' : 'aac'}.mp4`;
