@@ -44,6 +44,12 @@ function crashMessage(): string | null {
     return null;
   }
   if (!step) return null;
+  if (step === 'auswählen')
+    return (
+      'Die App wurde beim Hochladen des Videos von iOS beendet – vermutlich war das Video zu groß. ' +
+      'Am zuverlässigsten: Video in der Fotos-App über Teilen → „In Dateien sichern“ speichern und dann ' +
+      '„Aus der Dateien-App wählen“ nehmen. Mehr Tipps unten unter „Absturz beim Hochladen?“.'
+    );
   return (
     `Die App wurde beim ${step === 'öffnen' ? 'Öffnen des Videos' : step === 'analysieren' ? 'Analysieren' : 'Exportieren'} ` +
     'von iOS beendet – vermutlich war der Speicher zu knapp. Tipps: andere Apps und Safari-Tabs schließen, ' +
@@ -352,7 +358,7 @@ export default function App() {
     return (
       <>
         <LegalNotice />
-        <Picker onPick={pick} error={error} />
+        <Picker onPick={pick} onPickStart={() => markStep('auswählen')} onPickEnd={() => markStep(null)} error={error} />
       </>
     );
   }

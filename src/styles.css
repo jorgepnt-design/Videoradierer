@@ -586,3 +586,33 @@ input[type='range']::-moz-range-thumb {
 .modal .btn {
   width: 100%;
 }
+
+.picker .btn.big + .btn.big {
+  margin-top: 4px;
+}
+.picker .logo img {
+  border-radius: 20px;
+  display: block;
+}
+.help {
+  width: 100%;
+  max-width: 400px;
+  text-align: left;
+  margin-top: 18px;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #d1d1d6;
+}
+.help summary {
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+}
+.help ul {
+  padding-left: 18px;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 8px;
+}
