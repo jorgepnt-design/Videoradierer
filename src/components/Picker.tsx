@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, type ReactNode } from 'react';
 
 interface Props {
   onPick: (f: File) => void;
@@ -6,9 +6,10 @@ interface Props {
   onPickStart: () => void;
   onPickEnd: () => void;
   error: string | null;
+  children?: ReactNode;
 }
 
-export function Picker({ onPick, onPickStart, onPickEnd, error }: Props) {
+export function Picker({ onPick, onPickStart, onPickEnd, error, children }: Props) {
   const photos = useRef<HTMLInputElement>(null);
   const files = useRef<HTMLInputElement>(null);
 
@@ -60,6 +61,7 @@ export function Picker({ onPick, onPickStart, onPickEnd, error }: Props) {
       {input(photos, 'video/*')}
       {input(files, '.mov,.mp4,.m4v,video/quicktime,video/mp4')}
       {error && <p className="error">{error}</p>}
+      {children}
       <details className="help">
         <summary>Absturz beim Hochladen?</summary>
         <ul>

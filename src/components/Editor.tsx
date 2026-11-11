@@ -25,6 +25,7 @@ interface Props {
   onRegionsChange: (r: Region[]) => void;
   onCropChange: (c: Rect) => void;
   onLoaded: () => void;
+  onVideoError: (msg: string) => void;
 }
 
 type Drag =
@@ -353,6 +354,10 @@ export function Editor(p: Props) {
           playsInline
           preload="metadata"
           onLoadedData={p.onLoaded}
+          onError={(e) => {
+            const err = (e.target as HTMLVideoElement).error;
+            p.onVideoError(`Code ${err?.code ?? '?'}${err?.message ? `: ${err.message}` : ''}`);
+          }}
           style={{ width: disp.w, height: disp.h }}
         />
         <canvas

@@ -10,6 +10,8 @@ import { detectBars, detectStaticOverlays, suggestCrop } from './lib/detect';
 import { sampleFrames } from './lib/sampler';
 import { cancelFFmpeg, exportVideo, loadFFmpeg } from './lib/ffmpeg';
 import { PRESETS } from './lib/presets';
+import { diag, diagClear, diagLines } from './lib/diag';
+import { DiagBox } from './components/ErrorBoundary';
 import { clamp, formatBytes, formatTime, friendlyError, haptic, uid } from './lib/util';
 
 type Screen = 'pick' | 'edit' | 'process' | 'result';
@@ -66,6 +68,7 @@ export default function App() {
   const [url, setUrl] = useState<string | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [error, setError] = useState<string | null>(crashMessage);
+  const [crashLog] = useState<string[]>(() => (error ? diagLines() : []));
   const [notice, setNotice] = useState<string | null>(null);
 
   const [regions, setRegions] = useState<Region[]>([]);
@@ -95,6 +98,7 @@ export default function App() {
   const pick = async (f: File) => {
     setError(null);
     markStep('öffnen');
+    diag(`Datei erhalten: ${formatBytes(f.size)}, Typ „${f.type || '?'}“, Endung .${f.name.split('.').pop()}`);
     const u = URL.createObjectURL(f);
     try {
       const m = await new Promise<Meta>((res, rej) => {
@@ -108,10 +112,12 @@ export default function App() {
         };
         v.onloadedmetadata = () => {
           const m = { w: v.videoWidth, h: v.videoHeight, duration: v.duration };
+          diag(`Metadaten: ${m.w}×${m.h}, ${m.duration.toFixed(1)} s`);
           done();
           res(m);
         };
         v.onerror = () => {
+          diag(`Video-Fehler beim Öffnen: Code ${v.error?.code ?? '?'} ${v.error?.message ?? ''}`);
           done();
           rej(new Error('Dieses Video kann nicht geöffnet werden.'));
         };
@@ -132,6 +138,7 @@ export default function App() {
       setTime(0);
       setResult(null);
       setScreen('edit');
+      diag('Editor geöffnet');
       const warn: string[] = [];
       if (m.duration > 60) warn.push(`Das Video ist ${Math.round(m.duration)} s lang – die Bearbeitung kann einige Minuten dauern.`);
       if (f.size > 200e6) warn.push(`Die Datei ist ${formatBytes(f.size)} groß – auf dem iPhone kann der Speicher knapp werden. Tipp: „Schnell (720p)“.`);
@@ -220,6 +227,7 @@ export default function App() {
     if (!url || !meta) return;
     setDetecting(0);
     markStep('analysieren');
+    diag('Analyse gestartet');
     try {
       const stack = await sampleFrames(url, 24, 160, (p) => setDetecting(p));
       const s = stack.scale;
@@ -320,6 +328,7 @@ export default function App() {
       /* nicht verfügbar */
     }
     markStep('exportieren');
+    diag(`Export gestartet: ${settings.method}, ${settings.quality}, Zuschnitt ${cropOn ? 'an' : 'aus'}, ${regions.length} Bereiche`);
     try {
       await loadFFmpeg();
       if (cancelled.current) return;
@@ -334,6 +343,7 @@ export default function App() {
         onProgress: (p) => setProc({ stage: 'working', progress: clamp(p, 0, 1) }),
       });
       if (cancelled.current) return;
+      diag(`Export fertig: ${formatBytes(blob.size)}`);
       setResult(blob);
       setScreen('result');
       haptic(20);
@@ -358,7 +368,18 @@ export default function App() {
     return (
       <>
         <LegalNotice />
-        <Picker onPick={pick} onPickStart={() => markStep('auswählen')} onPickEnd={() => markStep(null)} error={error} />
+        <Picker
+          onPick={pick}
+          onPickStart={() => {
+            diagClear();
+            diag('Auswahl geöffnet');
+            markStep('auswählen');
+          }}
+          onPickEnd={() => markStep(null)}
+          error={error}
+        >
+          {crashLog.length > 0 && <DiagBox lines={crashLog} />}
+        </Picker>
       </>
     );
   }
@@ -415,7 +436,14 @@ export default function App() {
           setVersion((v) => v + 1);
         }}
         onCropChange={setCrop}
-        onLoaded={() => setTime(videoRef.current?.currentTime ?? 0)}
+        onLoaded={() => {
+          diag('Editor-Video geladen');
+          setTime(videoRef.current?.currentTime ?? 0);
+        }}
+        onVideoError={(msg) => {
+          diag(`Editor-Video-Fehler: ${msg}`);
+          setNotice(`Das Video kann hier nicht abgespielt werden (${msg}). Markieren und Exportieren funktioniert trotzdem.`);
+        }}
       />
 
       <div className="timeline">
