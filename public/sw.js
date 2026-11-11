@@ -1,5 +1,5 @@
 // Einfacher Offline-Cache: App-Dateien und die Video-Engine nach dem ersten Laden speichern.
-const CACHE = 'videoradierer-v1';
+const CACHE = 'videoradierer-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {

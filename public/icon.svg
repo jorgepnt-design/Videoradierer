@@ -1,15 +1,54 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2c2c2e"/>
-      <stop offset="1" stop-color="#000"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5e5ce6"/>
+      <stop offset="0.55" stop-color="#bf3fd6"/>
+      <stop offset="1" stop-color="#ff375f"/>
     </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1c1e"/>
+      <stop offset="1" stop-color="#0b0b0c"/>
+    </linearGradient>
+    <linearGradient id="eraser" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e9e9ef"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <clipPath id="screenClip">
+      <rect x="92" y="132" width="328" height="248" rx="40"/>
+    </clipPath>
   </defs>
-  <rect width="512" height="512" fill="url(#g)"/>
-  <rect x="86" y="146" width="340" height="230" rx="44" fill="#1c1c1e" stroke="#48484a" stroke-width="10"/>
-  <path d="M220 206v110l92-55z" fill="#fff"/>
-  <g transform="rotate(35 352 160)">
-    <rect x="290" y="70" width="124" height="160" rx="22" fill="#ff375f"/>
-    <rect x="290" y="186" width="124" height="44" rx="14" fill="#ffd1dc"/>
+
+  <!-- Hintergrund (iOS rundet die Ecken selbst ab) -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="110" cy="80" r="220" fill="#fff" opacity="0.08"/>
+
+  <!-- Video-Bildschirm -->
+  <g filter="url(#shadow)">
+    <rect x="92" y="132" width="328" height="248" rx="40" fill="url(#screen)"/>
+  </g>
+  <g clip-path="url(#screenClip)">
+    <!-- Play-Symbol -->
+    <path d="M214 206 L214 306 L298 256 Z" fill="#fff" stroke="#fff" stroke-width="14" stroke-linejoin="round"/>
+    <!-- Symbol-Spalte rechts, nach unten hin ausradiert -->
+    <circle cx="374" cy="186" r="15" fill="#fff" opacity="0.9"/>
+    <circle cx="374" cy="236" r="15" fill="#fff" opacity="0.5"/>
+    <circle cx="374" cy="286" r="15" fill="#fff" opacity="0.18"/>
+  </g>
+
+  <!-- Funkeln an der radierten Stelle -->
+  <g fill="#fff">
+    <path d="M300 318 l11 27 l27 11 l-27 11 l-11 27 l-11 -27 l-27 -11 l27 -11 z"/>
+    <path d="M244 366 l6 15 l15 6 l-15 6 l-6 15 l-6 -15 l-15 -6 l15 -6 z" opacity="0.85"/>
+  </g>
+
+  <!-- Radiergummi -->
+  <g transform="translate(396 300) scale(1.3) translate(-396 -300) rotate(38 396 300)" filter="url(#shadow)">
+    <rect x="352" y="232" width="88" height="150" rx="20" fill="url(#eraser)"/>
+    <rect x="352" y="232" width="88" height="62" rx="20" fill="#ff375f"/>
+    <rect x="352" y="274" width="88" height="20" fill="#ff375f"/>
+    <rect x="352" y="292" width="88" height="8" fill="#000" opacity="0.08"/>
   </g>
 </svg>
